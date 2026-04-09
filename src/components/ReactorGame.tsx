@@ -223,10 +223,11 @@ export default function ReactorGame() {
       const newFuel = Math.max(0, fuel - fuelConsumption);
       setFuel(newFuel);
 
-      // Score: Accumulate energy generated (MWh equivalent)
+      // Score: Accumulate energy generated (GWh equivalent)
       // actualPower is in MW, TICK_RATE is 0.5s. 
       // Energy = Power * Time. 0.5s is 1/7200 of an hour.
-      const energyGenerated = (actualPower / 7200); 
+      // MW -> MWh: / 7200. MWh -> GWh: / 1000. Total divisor: 7,200,000
+      const energyGenerated = (actualPower / 7200000); 
       setScore(prev => prev + energyGenerated);
 
       // 7. Meltdown Check
@@ -325,7 +326,7 @@ export default function ReactorGame() {
           <div className="flex items-center gap-4">
             <div className="text-right">
               <div className="text-xs text-zinc-400 uppercase tracking-widest">Total Energy Generated</div>
-              <div className="text-2xl font-bold text-emerald-400">{(score || 0).toFixed(2)} <span className="text-xs">MWh</span></div>
+              <div className="text-2xl font-bold text-emerald-400">{(score || 0).toFixed(4)} <span className="text-xs">GWh</span></div>
             </div>
             <div className="h-10 w-[1px] bg-zinc-800 mx-2" />
             <div className="flex gap-2">
@@ -822,11 +823,11 @@ export default function ReactorGame() {
           <div className="py-6 space-y-4">
             <div className="flex justify-between items-center p-4 bg-zinc-950 rounded-lg border border-zinc-800">
               <span className="text-sm text-zinc-400">Final Score</span>
-              <span className="text-2xl font-bold text-emerald-400">{(score || 0).toLocaleString()}</span>
+              <span className="text-2xl font-bold text-emerald-400">{Math.floor((score || 0) * 10000).toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center p-4 bg-zinc-950 rounded-lg border border-zinc-800">
               <span className="text-sm text-zinc-400">Total Energy</span>
-              <span className="text-2xl font-bold text-zinc-300">{(score * 10).toLocaleString()} MWh</span>
+              <span className="text-2xl font-bold text-zinc-300">{(score || 0).toFixed(4)} GWh</span>
             </div>
             <div className="flex justify-between items-center p-4 bg-zinc-950 rounded-lg border border-zinc-800">
               <span className="text-sm text-zinc-400">Operation Time</span>
