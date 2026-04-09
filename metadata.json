@@ -1,0 +1,5 @@
+{
+  "name": "Nucleus: Reactor Simulator",
+  "description": "A high-fidelity nuclear power plant management simulation. Balance reactivity, temperature, and pressure to maximize electrical output while avoiding a catastrophic meltdown.",
+  "requestFramePermissions": []
+}
