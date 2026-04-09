@@ -193,14 +193,22 @@ export default function ReactorGame() {
     const newIntegrity = Math.max(0, vesselIntegrity - integrityLoss);
 
     // 5. Power Output
-    // Steam pressure drives turbine. Efficiency depends on matching load.
+    // Steam pressure drives turbine. Efficiency depends on matching requested load.
     // Performance scales with vessel integrity
-    const turbinePotential = newPressure * 0.5 * (newIntegrity / 100);
-    const loadFactor = load / 100;
-    const actualPower = Math.min(turbinePotential || 0, loadFactor * 5000);
+    const requestedPower = (load / 100) * 5000;
+    const turbinePotential = newPressure * 0.5 * (vesselIntegrity / 100);
     
-    // Efficiency is high when power matches load potential
-    const newEfficiency = actualPower > 0 ? (actualPower / (turbinePotential || 1)) * 100 : 0;
+    // Actual power delivered is what we can produce, capped by what the grid can take
+    const actualPower = Math.min(turbinePotential || 0, requestedPower);
+    
+    // Efficiency: 100% when production matches demand. 
+    // Overproduction wastes steam/energy. Underproduction fails the grid.
+    const powerDiff = Math.abs(turbinePotential - requestedPower);
+    const syncTolerance = 50; // MW tolerance for perfect sync
+    const syncPenalty = Math.max(0, powerDiff - syncTolerance);
+    const newEfficiency = turbinePotential > 0 || requestedPower > 0
+      ? Math.max(0, 100 - (syncPenalty / 1000) * 100)
+      : 100;
 
     // 6. Update State with safety checks
     if (!isNaN(newFlux) && !isNaN(newTemp) && !isNaN(newPressure) && !isNaN(actualPower)) {
@@ -416,8 +424,8 @@ export default function ReactorGame() {
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-end">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-yellow-500" /> Grid Load
+                    <label className="text-sm font-medium flex items-center gap-2 text-zinc-100">
+                      <Zap className="w-4 h-4 text-yellow-500" /> Grid Demand
                     </label>
                     <span className="text-xs font-bold text-zinc-300">{Math.min(100, Math.max(0, Math.round(gridLoad || 0)))}%</span>
                   </div>
@@ -433,7 +441,7 @@ export default function ReactorGame() {
                     className="[&_[role=slider]]:bg-yellow-500"
                   />
                   <p className="text-[10px] text-zinc-400 leading-tight">
-                    Requested power from the grid. Match production for max efficiency.
+                    Requested power from the grid. Adjust reactor output to match this target for maximum efficiency.
                   </p>
                 </div>
 
@@ -680,8 +688,16 @@ export default function ReactorGame() {
                     <div className="text-lg font-bold text-blue-400">{Math.round((steamPressure || 0) / 10)}%</div>
                     <div className="text-[8px] text-zinc-400 uppercase font-semibold">Turbine RPM</div>
                   </div>
-                  <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800 text-center">
-                    <div className="text-lg font-bold text-yellow-500">{(gridLoad || 0)}%</div>
+                  <div className={cn(
+                    "p-3 bg-zinc-950 rounded-lg border text-center transition-colors",
+                    efficiency > 90 ? "border-emerald-900/50" : efficiency > 50 ? "border-yellow-900/50" : "border-red-900/50"
+                  )}>
+                    <div className={cn(
+                      "text-lg font-bold",
+                      efficiency > 90 ? "text-emerald-400" : efficiency > 50 ? "text-yellow-500" : "text-red-500"
+                    )}>
+                      {Math.round(efficiency)}%
+                    </div>
                     <div className="text-[8px] text-zinc-400 uppercase font-semibold">Grid Sync</div>
                   </div>
                 </div>
