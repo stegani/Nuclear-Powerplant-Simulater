@@ -212,9 +212,11 @@ export default function ReactorGame() {
     
     // Efficiency: 100% when production matches demand. 
     // We use a percentage-based difference for a smoother curve
+    // Efficiency is also limited by remaining fuel
     const powerDiff = Math.abs(turbinePotential - requestedPower);
     const maxVal = Math.max(turbinePotential, requestedPower, 1);
-    const newEfficiency = isTurbineLocked ? Math.max(0, 100 - (powerDiff / maxVal) * 100) : 0;
+    const baseEfficiency = Math.max(0, 100 - (powerDiff / maxVal) * 100);
+    const newEfficiency = isTurbineLocked ? baseEfficiency * (fuel / 100) : 0;
 
     // 6. Update State with safety checks
     if (!isNaN(newFlux) && !isNaN(newTemp) && !isNaN(newPressure) && !isNaN(actualPower)) {
@@ -769,7 +771,7 @@ export default function ReactorGame() {
                     <span>Efficiency</span>
                     <span>{Math.round(efficiency || 0)}%</span>
                   </div>
-                  <Progress value={efficiency || 0} className="h-1 bg-zinc-800 [&>div]:bg-emerald-500" />
+                  <Progress value={efficiency || 0} className="h-1 bg-zinc-950 border border-zinc-800/50 [&>div]:bg-emerald-400" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-2">
@@ -838,47 +840,47 @@ export default function ReactorGame() {
         <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-bold text-emerald-500 flex items-center gap-2">
-              <HelpCircle className="w-6 h-6" /> MANUALE OPERATIVO DEL REATTORE
+              <HelpCircle className="w-6 h-6" /> REACTOR OPERATOR MANUAL
             </AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400 text-sm space-y-4">
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">1. Barre di Controllo</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">1. Control Rods</h4>
                 <p>
-                  Le barre assorbono i neutroni per regolare la reazione. Inserite al <strong>100%</strong> fermano la fissione. 
-                  Estraendole verso lo <strong>0%</strong> si aumenta il flusso neutronico e la generazione di calore.
+                  Control rods absorb neutrons to regulate the reaction. Inserted at <strong>100%</strong>, they stop fission. 
+                  Withdrawing them towards <strong>0%</strong> increases neutron flux and heat generation.
                 </p>
               </div>
               
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">2. Gestione Termica</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">2. Thermal Management</h4>
                 <p>
-                  Il calore deve essere rimosso dal nocciolo tramite il <strong>Flusso di Refrigerante</strong>. 
-                  La temperatura operativa ottimale è tra <strong>600°C e 800°C</strong>.
+                  Heat must be removed from the core via <strong>Coolant Flow</strong>. 
+                  The optimal operating temperature is between <strong>600°C and 800°C</strong>.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">3. Sincronizzazione Turbina</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">3. Turbine Synchronization</h4>
                 <p>
-                  La turbina non si collega automaticamente alla rete. È necessario raggiungere una pressione del vapore di almeno <strong>200 PSI</strong> 
-                  prima di poter attivare il comando <strong>SYNC TO GRID</strong>. Se la pressione scende sotto i <strong>150 PSI</strong>, 
-                  la turbina si scollegherà automaticamente (Trip) per sicurezza.
+                  The turbine does not connect automatically. You must reach a steam pressure of at least <strong>200 PSI</strong> 
+                  before activating <strong>SYNC TO GRID</strong>. If pressure drops below <strong>150 PSI</strong>, 
+                  the turbine will automatically disconnect (Trip) for safety.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">4. Efficienza e GWh</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">4. Efficiency & Fuel</h4>
                 <p>
-                  L'energia totale è misurata in <strong>Gigawattora (GWh)</strong>. Per massimizzare la produzione e il punteggio, 
-                  regola la potenza del reattore in modo che corrisponda esattamente alla <strong>Domanda di Rete (Grid Demand)</strong>.
+                  Total energy is measured in <strong>Gigawatt-hours (GWh)</strong>. Maximize output by matching 
+                  <strong>Grid Demand</strong>. Note that <strong>Efficiency</strong> decreases proportionally as nuclear fuel is depleted.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">5. Sicurezza e SCRAM</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">5. Safety & SCRAM</h4>
                 <p>
-                  Temperature sopra gli 850°C danneggiano il <strong>Vaso di Contenimento</strong>. Oltre i 1000°C avviene la fusione. 
-                  In caso di emergenza, usa il tasto <strong>SCRAM</strong> per l'inserimento immediato di tutte le barre e il distacco della turbina.
+                  Temperatures above 850°C damage the <strong>Containment Vessel</strong>. Above 1000°C, a meltdown occurs. 
+                  In an emergency, use <strong>SCRAM</strong> for immediate rod insertion and turbine disconnection.
                 </p>
               </div>
             </AlertDialogDescription>
