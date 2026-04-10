@@ -513,7 +513,7 @@ export default function ReactorGame() {
                       {Math.round(fuel)}%
                     </span>
                   </div>
-                  <Progress value={fuel} className={cn("h-1 bg-zinc-800", fuel < 20 ? "[&>div]:bg-red-500" : "[&>div]:bg-emerald-500")} />
+                  <Progress value={fuel} className={cn("h-1 bg-zinc-950 border border-zinc-800/50", fuel < 20 ? "[&>div]:bg-red-500" : "[&>div]:bg-emerald-400")} />
                 </div>
 
                 <div className="space-y-1">
@@ -523,7 +523,13 @@ export default function ReactorGame() {
                       {coreTemp > CRITICAL_TEMP ? "CRITICAL" : "STABLE"}
                     </span>
                   </div>
-                  <Progress value={Math.max(0, 100 - (coreTemp / MAX_TEMP) * 100)} className="h-1 bg-zinc-800" />
+                  <Progress 
+                    value={Math.max(0, 100 - (coreTemp / MAX_TEMP) * 100)} 
+                    className={cn(
+                      "h-1 bg-zinc-950 border border-zinc-800/50",
+                      coreTemp > CRITICAL_TEMP ? "[&>div]:bg-red-500" : "[&>div]:bg-emerald-400"
+                    )} 
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -533,7 +539,7 @@ export default function ReactorGame() {
                       {Math.round(vesselIntegrity)}%
                     </span>
                   </div>
-                  <Progress value={vesselIntegrity} className={cn("h-1 bg-zinc-800", vesselIntegrity < 50 ? "[&>div]:bg-red-500" : "[&>div]:bg-emerald-500")} />
+                  <Progress value={vesselIntegrity} className={cn("h-1 bg-zinc-950 border border-zinc-800/50", vesselIntegrity < 50 ? "[&>div]:bg-red-500" : "[&>div]:bg-emerald-400")} />
                 </div>
                 
                 <div className="flex justify-between items-center">
