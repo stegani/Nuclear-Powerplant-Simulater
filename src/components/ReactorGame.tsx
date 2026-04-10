@@ -67,12 +67,15 @@ export default function ReactorGame() {
   const [neutronFlux, setNeutronFlux] = useState(0);
   const [steamPressure, setSteamPressure] = useState(0);
   const [powerOutput, setPowerOutput] = useState(0);
+  const [potentialPower, setPotentialPower] = useState(0);
+  const [isTurbineLocked, setIsTurbineLocked] = useState(false);
   const [efficiency, setEfficiency] = useState(0);
   const [history, setHistory] = useState<HistoryData[]>([]);
   const [isMeltdown, setIsMeltdown] = useState(false);
   const [showGameOver, setShowGameOver] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [score, setScore] = useState(0);
+  const [sessionTime, setSessionTime] = useState(0);
   const [fuel, setFuel] = useState(100); // 100% fuel
   const [vesselIntegrity, setVesselIntegrity] = useState(100); // 100% integrity
 
@@ -130,12 +133,15 @@ export default function ReactorGame() {
     setNeutronFlux(0);
     setSteamPressure(0);
     setPowerOutput(0);
+    setPotentialPower(0);
+    setIsTurbineLocked(false);
     setEfficiency(0);
     setHistory([]);
     setIsMeltdown(false);
     setShowGameOver(false);
     setTime(0);
     setScore(0);
+    setSessionTime(0);
     setFuel(100);
     setVesselIntegrity(100);
     setControlRods(100);
@@ -146,6 +152,7 @@ export default function ReactorGame() {
 
   const scram = useCallback(() => {
     setControlRods(100);
+    setIsTurbineLocked(false);
     // Add a log entry for SCRAM
     setHistory(prev => {
       const newData = [...prev, { 
@@ -200,13 +207,14 @@ export default function ReactorGame() {
     const turbinePotential = newPressure * 1.5 * (vesselIntegrity / 100);
     
     // Actual power delivered is what we can produce, capped by what the grid can take
-    const actualPower = Math.min(turbinePotential || 0, requestedPower);
+    // ONLY if the turbine is locked to the grid
+    const actualPower = isTurbineLocked ? Math.min(turbinePotential || 0, requestedPower) : 0;
     
     // Efficiency: 100% when production matches demand. 
     // We use a percentage-based difference for a smoother curve
     const powerDiff = Math.abs(turbinePotential - requestedPower);
     const maxVal = Math.max(turbinePotential, requestedPower, 1);
-    const newEfficiency = Math.max(0, 100 - (powerDiff / maxVal) * 100);
+    const newEfficiency = isTurbineLocked ? Math.max(0, 100 - (powerDiff / maxVal) * 100) : 0;
 
     // 6. Update State with safety checks
     if (!isNaN(newFlux) && !isNaN(newTemp) && !isNaN(newPressure) && !isNaN(actualPower)) {
@@ -214,8 +222,15 @@ export default function ReactorGame() {
       setCoreTemp(newTemp);
       setSteamPressure(newPressure);
       setPowerOutput(actualPower);
+      setPotentialPower(turbinePotential);
       setEfficiency(newEfficiency);
       setVesselIntegrity(newIntegrity);
+      setSessionTime(prev => prev + 0.5);
+
+      // Turbine Trip Logic: If pressure drops too low while locked, it trips
+      if (isTurbineLocked && newPressure < 150) {
+        setIsTurbineLocked(false);
+      }
       
       // Fuel consumption: targeted to last 10 minutes (600s) at full power (1000 flux)
       // 600s / 0.5s (TICK_RATE) = 1200 ticks. 100% / 1200 = 0.0833 per tick at max flux.
@@ -255,7 +270,7 @@ export default function ReactorGame() {
         const newData = [...prev, { 
           time: time, 
           temp: Math.round(newTemp), 
-          power: Math.round(actualPower),
+          power: Math.round(turbinePotential),
           pressure: Math.round(newPressure)
         }];
         return newData.slice(-30); // Keep last 30 ticks
@@ -275,6 +290,20 @@ export default function ReactorGame() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isRunning, isMeltdown, updateSimulation]);
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatPower = (mw: number) => {
+    if (mw >= 1000) {
+      return `${(mw / 1000).toFixed(2)} GW`;
+    }
+    return `${Math.round(mw)} MW`;
+  };
 
   const getStatusColor = () => {
     if (coreTemp > CRITICAL_TEMP) return 'text-red-500';
@@ -302,7 +331,7 @@ export default function ReactorGame() {
             <div>
               <h1 className="text-3xl font-bold tracking-tighter flex items-center gap-2">
                 <Cpu className="w-8 h-8 text-emerald-500" />
-                NUCLEUS <span className="text-zinc-500 font-light">v1.0.4</span>
+                NUCLEUS <span className="text-zinc-500 font-light">v1.0.5</span>
               </h1>
               <p className="text-zinc-400 text-sm">Reactor Control Interface - Sector 7-G</p>
             </div>
@@ -324,9 +353,16 @@ export default function ReactorGame() {
           </div>
           
           <div className="flex items-center gap-4">
+            <div className="text-right border-r border-zinc-800 pr-4">
+              <div className="text-[10px] text-zinc-500 uppercase tracking-widest">Session Time</div>
+              <div className="text-xl font-bold text-zinc-300 tabular-nums">{formatTime(sessionTime)}</div>
+            </div>
             <div className="text-right">
               <div className="text-xs text-zinc-400 uppercase tracking-widest">Total Energy Generated</div>
-              <div className="text-2xl font-bold text-emerald-400">{(score || 0).toFixed(4)} <span className="text-xs">GWh</span></div>
+              <div className="flex flex-col items-end">
+                <div className="text-2xl font-bold text-emerald-400">{(score || 0).toFixed(4)} <span className="text-xs">GWh</span></div>
+                <div className="text-[10px] text-zinc-500 font-medium">≈ {((score || 0) * 1000).toFixed(2)} MWh</div>
+              </div>
             </div>
             <div className="h-10 w-[1px] bg-zinc-800 mx-2" />
             <div className="flex gap-2">
@@ -393,7 +429,7 @@ export default function ReactorGame() {
                     min={0}
                     max={100} 
                     step={1}
-                    className="[&_[role=slider]]:bg-emerald-500"
+                    className="[&_[data-slot=slider-range]]:bg-emerald-500 [&_[data-slot=slider-thumb]]:bg-emerald-500 [&_[data-slot=slider-track]]:bg-zinc-800"
                   />
                   <p className="text-[10px] text-zinc-400 leading-tight">
                     Lower values increase reactivity and heat. High values dampen the reaction.
@@ -416,7 +452,7 @@ export default function ReactorGame() {
                     min={0}
                     max={100} 
                     step={1}
-                    className="[&_[role=slider]]:bg-blue-500"
+                    className="[&_[data-slot=slider-range]]:bg-blue-500 [&_[data-slot=slider-thumb]]:bg-blue-500 [&_[data-slot=slider-track]]:bg-zinc-800"
                   />
                   <p className="text-[10px] text-zinc-400 leading-tight">
                     Increases heat removal. Consumes auxiliary power.
@@ -428,7 +464,7 @@ export default function ReactorGame() {
                     <label className="text-sm font-medium flex items-center gap-2 text-zinc-100">
                       <Zap className="w-4 h-4 text-yellow-500" /> Grid Demand
                     </label>
-                    <span className="text-xs font-bold text-zinc-300">{Math.round((gridLoad / 100) * 1000)} MW</span>
+                    <span className="text-xs font-bold text-zinc-300">{formatPower((gridLoad / 100) * 1000)}</span>
                   </div>
                   <Slider 
                     value={[gridLoad]} 
@@ -439,7 +475,7 @@ export default function ReactorGame() {
                     min={0}
                     max={100} 
                     step={1}
-                    className="[&_[role=slider]]:bg-yellow-500"
+                    className="[&_[data-slot=slider-range]]:bg-yellow-500 [&_[data-slot=slider-thumb]]:bg-yellow-500 [&_[data-slot=slider-track]]:bg-zinc-800"
                   />
                   <p className="text-[10px] text-zinc-400 leading-tight">
                     Requested power from the grid. Adjust reactor output to match this target for maximum efficiency.
@@ -500,8 +536,34 @@ export default function ReactorGame() {
                 
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-zinc-300">Turbine Sync</span>
-                  <span className="text-xs font-bold text-blue-400">LOCKED</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded-sm",
+                      isTurbineLocked ? "bg-blue-500/20 text-blue-400" : "bg-zinc-800 text-zinc-500"
+                    )}>
+                      {isTurbineLocked ? "LOCKED" : "UNLOCKED"}
+                    </span>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className={cn(
+                        "h-6 text-[9px] px-2 font-bold transition-all",
+                        isTurbineLocked 
+                          ? "border-red-900/50 text-red-400 hover:bg-red-900/20" 
+                          : "border-blue-900/50 text-blue-400 hover:bg-blue-900/20"
+                      )}
+                      disabled={!isRunning || isMeltdown || (!isTurbineLocked && steamPressure < 200)}
+                      onClick={() => setIsTurbineLocked(!isTurbineLocked)}
+                    >
+                      {isTurbineLocked ? "DISCONNECT" : "SYNC TO GRID"}
+                    </Button>
+                  </div>
                 </div>
+                {!isTurbineLocked && isRunning && steamPressure < 200 && (
+                  <p className="text-[8px] text-blue-500/70 italic">
+                    * Pressure too low for synchronization (min 200 PSI)
+                  </p>
+                )}
                 
                 <div className="pt-2">
                   {getStatusBadge()}
@@ -671,9 +733,35 @@ export default function ReactorGame() {
                 <CardTitle className="text-xs uppercase tracking-widest text-zinc-400">Generator Output</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6 pt-4">
-                <div className="text-center p-4 bg-zinc-950 rounded-lg border border-zinc-800 shadow-inner">
-                  <div className="text-4xl font-bold text-emerald-300 tabular-nums">{Math.round(powerOutput || 0)}</div>
-                  <div className="text-xs text-zinc-400 uppercase font-bold tracking-tighter">Megawatts (MW)</div>
+                <div className="text-center p-4 bg-zinc-950 rounded-lg border border-zinc-800 shadow-inner relative overflow-hidden">
+                  {!isTurbineLocked ? (
+                    <div className="py-2">
+                      <div className="text-2xl font-bold text-zinc-600 italic tracking-tighter">DISCONNECTED</div>
+                      <div className="text-[10px] text-zinc-500 uppercase font-bold">Turbine Offline</div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-4xl font-bold text-emerald-300 tabular-nums">
+                        {potentialPower >= 1000 ? (potentialPower / 1000).toFixed(3) : Math.round(potentialPower)}
+                      </div>
+                      <div className="text-xs text-zinc-400 uppercase font-bold tracking-tighter">
+                        {potentialPower >= 1000 ? 'Gigawatts (GW)' : 'Megawatts (MW)'}
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Balance Indicator */}
+                  {isTurbineLocked && (
+                    <div className="mt-2 flex items-center justify-center gap-2">
+                      {Math.abs(potentialPower - ((gridLoad / 100) * 1000)) < 10 ? (
+                        <span className="text-[8px] px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30 font-bold">PERFECT MATCH</span>
+                      ) : potentialPower > ((gridLoad / 100) * 1000) ? (
+                        <span className="text-[8px] px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30 font-bold">OVER-PRODUCING</span>
+                      ) : (
+                        <span className="text-[8px] px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30 font-bold">UNDER-PRODUCING</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -718,7 +806,7 @@ export default function ReactorGame() {
                     {entry.temp > CRITICAL_TEMP ? (
                       <span className="text-red-300 font-bold">WARNING: Core temperature exceeding safety limits ({entry.temp}°C)</span>
                     ) : entry.power > 0 ? (
-                      <span className="text-emerald-300 font-medium">INFO: Power generation stable at {entry.power}MW</span>
+                      <span className="text-emerald-300 font-medium">INFO: Reactor output stable at {entry.power}MW</span>
                     ) : entry.temp > 300 && controlRods === 100 ? (
                       <span className="text-red-400 font-bold">ALERT: SCRAM INITIATED - EMERGENCY SHUTDOWN</span>
                     ) : (
@@ -750,38 +838,47 @@ export default function ReactorGame() {
         <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-bold text-emerald-500 flex items-center gap-2">
-              <HelpCircle className="w-6 h-6" /> REACTOR OPERATOR MANUAL
+              <HelpCircle className="w-6 h-6" /> MANUALE OPERATIVO DEL REATTORE
             </AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400 text-sm space-y-4">
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">1. Control Rods (Neutron Absorbers)</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">1. Barre di Controllo</h4>
                 <p>
-                  Unlike moderators, these rods are made of materials like Boron or Cadmium that <strong>absorb</strong> neutrons. 
-                  Inserting them (100%) stops the chain reaction. Pulling them out (0%) increases neutron flux and heat.
+                  Le barre assorbono i neutroni per regolare la reazione. Inserite al <strong>100%</strong> fermano la fissione. 
+                  Estraendole verso lo <strong>0%</strong> si aumenta il flusso neutronico e la generazione di calore.
                 </p>
               </div>
               
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">2. Thermal Management</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">2. Gestione Termica</h4>
                 <p>
-                  Fission generates heat. Use <strong>Coolant Flow</strong> to transfer heat from the core to the steam generators. 
-                  Optimal operating temperature is between <strong>600°C and 800°C</strong>.
+                  Il calore deve essere rimosso dal nocciolo tramite il <strong>Flusso di Refrigerante</strong>. 
+                  La temperatura operativa ottimale è tra <strong>600°C e 800°C</strong>.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">3. Power & Efficiency</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">3. Sincronizzazione Turbina</h4>
                 <p>
-                  Steam pressure drives the turbines. To maximize efficiency, match your <strong>Power Output</strong> with the <strong>Grid Load</strong>. 
-                  Mismatched loads cause energy waste and lower your score.
+                  La turbina non si collega automaticamente alla rete. È necessario raggiungere una pressione del vapore di almeno <strong>200 PSI</strong> 
+                  prima di poter attivare il comando <strong>SYNC TO GRID</strong>. Se la pressione scende sotto i <strong>150 PSI</strong>, 
+                  la turbina si scollegherà automaticamente (Trip) per sicurezza.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">4. Safety & SCRAM</h4>
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">4. Efficienza e GWh</h4>
                 <p>
-                  Temperatures above 850°C damage the <strong>Containment Vessel</strong>. Above 1000°C, a <strong>Meltdown</strong> occurs. 
-                  Use the <strong>SCRAM</strong> button for immediate emergency shutdown.
+                  L'energia totale è misurata in <strong>Gigawattora (GWh)</strong>. Per massimizzare la produzione e il punteggio, 
+                  regola la potenza del reattore in modo che corrisponda esattamente alla <strong>Domanda di Rete (Grid Demand)</strong>.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-zinc-200 uppercase tracking-wider">5. Sicurezza e SCRAM</h4>
+                <p>
+                  Temperature sopra gli 850°C danneggiano il <strong>Vaso di Contenimento</strong>. Oltre i 1000°C avviene la fusione. 
+                  In caso di emergenza, usa il tasto <strong>SCRAM</strong> per l'inserimento immediato di tutte le barre e il distacco della turbina.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -813,7 +910,7 @@ export default function ReactorGame() {
                 vesselIntegrity <= 0 ? (
                   "The Primary Containment Vessel has suffered a catastrophic structural failure due to prolonged thermal stress. Radioactive materials have been released into the atmosphere."
                 ) : (
-                  "The core temperature exceeded 1000°C, causing a breach in the containment vessel. The facility has been evacuated and the surrounding area is now uninhabitable."
+                  "The core temperature exceeded 1000°C, causing a breach in the containment vessel. Automatic safety systems have contained the incident, but the reactor core requires complete decommissioning."
                 )
               ) : (
                 "The nuclear fuel has been completely depleted. The reactor has been safely shut down after a successful generation cycle."
